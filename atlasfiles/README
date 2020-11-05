@@ -1,0 +1,6 @@
+This directory contains the different (solar) spectral atlases cast in a common FITS file format.
+
+This format stores the files in binary table extensions, with different components of the atlas kept in separate columns. 
+Different wavelength intervals might be stored in separate extensions.
+
+KPR - 04 Nov, 2020
