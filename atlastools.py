@@ -12,6 +12,24 @@ from astropy import units as u
 from astropy.coordinates import earth
 import re
 
+class observatory:
+  def __init__(observatoryobj, obsname, obscoord, instrument):
+    observatoryobj.name       = obsname
+    #observatoryobj.location   = earth.EarthLocation.of_site(obsname)
+    observatoryobj.location   = obscoord
+    observatoryobj.instrument = instrument
+
+# Issue #3 - very rudimentary atlas object - needs to be fleshed out 
+class atlas:
+  def __init__(atlasobject, specobj_sun, specobj_telluric, specobj_all, target, source, observatory):
+    atlasobject.target      = target
+    atlasobject.source      = source
+    atlasobject.observatory = observatory
+    # atlas data here
+    atlasobject.sun         = specobj_sun           # when populated, should be a spec1D object
+    atlasobject.atm         = specobj_telluric      # when populated, should be a spec1D object
+    atlasobject.components  = specobj_all           # when populated, should be a dictionary of spec1D object
+        
 #
 def make_dictionary(filename, extension):
     '''
@@ -99,6 +117,19 @@ def column_information(dictionary):
         print("-----COLUMN-----\n\nComponent type: {}\nColumn data units: {}\nAxis Labels: {}\nTarget: {}\nDerivation Method: {}\nIncludes Telluric Absorption: {}\n".format(a,b,c,d,e,f))
 
 #
+def find_column_index(dictionary, column_key):
+    # extract the FITS keyword column index for the column being plotted
+    # (as defined by the column_key input)
+    # i.e. the keywords have names like TTITLn - we need to find the value 
+    # of "n" corresponding to the column name provided by column_key
+
+    kw = list(dictionary.keys())[list(dictionary.values()).index(column_key)]
+    #integer_search = re.compile(r'\d+(?:\.\d+)?')
+    integer_search = re.compile(r'[A-Z]+(\d+)')
+    col_index   = integer_search.findall(kw)
+    
+    return col_index
+#
 def telluric_info(dictionary):
     '''
     Return series of print statements notifying whether 
@@ -153,20 +184,20 @@ def filecontent_map(filename):
     for i in range(1,len(file)):
         print("EXTENSION {}:\n".format(i))
         
-        dictionary = make_dictionary(filename,i)
+        atlasdict = make_dictionary(filename,i)
         
-        columns = search_key('COLNUM', dictionary)
+        columns = search_key('COLNUM', atlasdict)
         count = 1
             
-        minimums = search_key('TDMIN', dictionary)
-        maximums = search_key('TDMAX', dictionary)
+        minimums = search_key('TDMIN', atlasdict)
+        maximums = search_key('TDMAX', atlasdict)
 
         waverange = [x for y in zip(minimums, maximums) for x in y]
         res = list(zip(waverange, waverange[1:] + waverange[:1]))
         finalranges = res[::2]
 
-        units = search_key('TUNIT', dictionary)
-        column_type = search_key('TTYPE', dictionary)
+        units = search_key('TUNIT', atlasdict)
+        column_type = search_key('TTYPE', atlasdict)
         #matchidx = re.search(r'[A-Za-z]',column_type[::-1])
         #coltype_base = (column_type[:-matchidx.start(0)]).strip()
         #coltype_idx  = (column_type[-matchidx.start(0):]).strip()
@@ -217,11 +248,11 @@ def store_data(filename, extension):
     f = fits.open(filename)
     
     # generating an extension-specific dictionary
-    ext_dictionary = atlastools.make_dictionary(filename, extension)
+    atlasdict = atlastools.make_dictionary(filename, extension)
     
     # searching the extension dictionary for keywords tagged TTYPE which are the data
     # and storing them in a list
-    data_to_store = atlastools.search_key('TTYPE', ext_dictionary)
+    data_to_store = atlastools.search_key('TTYPE', atlasdict)
     
     # reading in the actual data per TTYPE keyword, and storing that data in a new
     # dictionary associated with the type of data it is
@@ -231,7 +262,7 @@ def store_data(filename, extension):
         
     # searching the extension dictionary for keywords tagged TUNIT which are the units
     # associated with the data and storing them in a list
-    units_to_store = atlastools.search_key('TUNIT', ext_dictionary)
+    units_to_store = atlastools.search_key('TUNIT', atlasdict)
     
     # associating the data type with the units it required and storing in a new dictionary
     unit_tags = {}
@@ -265,9 +296,19 @@ def store_data(filename, extension):
     # than nested if statements)
     spec_data = {}
     for key in file_data:
-        if key != 'Wavelength Scale   1':
-            if key != 'Wavelength Scale   2':
+        if re.search(r'Wavelength Scale*', key) is None:
+#        if key != 'Wavelength Scale   1':
+#            if key != 'Wavelength Scale   2':
+                col_index = find_column_index(atlasdict, key)
                 finalized = Spectrum1D(spectral_axis=file_data['Wavelength Scale   1'], flux=file_data[key])
+                finalized.meta.update(unit            = atlastools.search_key('TUNIT' + col_index[0], atlasdict))
+                finalized.meta.update(has_telluric    = atlastools.search_key('TWATM' + col_index[0], atlasdict))
+                finalized.meta.update(has_solar       = atlastools.search_key('TWSUN' + col_index[0], atlasdict))
+                finalized.meta.update(observed_object = atlastools.search_key('TOBJC' + col_index[0], atlasdict))
+                finalized.meta.update(observed_target = atlastools.search_key('TTRGT' + col_index[0], atlasdict))
+                finalized.meta.update(col_title       = atlastools.search_key('TTITL' + col_index[0], atlasdict))
+                finalized.meta.update(col_label       = atlastools.search_key('TLABL' + col_index[0], atlasdict))
+                finalized.meta.update(col_description = atlastools.search_key('TDESC' + col_index[0], atlasdict))
                 spec_data[key] = finalized
                 
     return file_data, spec_data
@@ -292,21 +333,6 @@ def make_atlas(filename, extension, loaddata=0):
     from astropy.coordinates import EarthLocation
     import atlastools
 
-    class observatory:
-      def __init__(observatoryobj, obsname, obscoord, instrument):
-        observatoryobj.name       = obsname
-        #observatoryobj.location   = earth.EarthLocation.of_site(obsname)
-        observatoryobj.location   = obscoord
-        observatoryobj.instrument = instrument
-
-    class atlas:
-      def __init__(atlasobject, specobj_sun, specobj_telluric, target, source, observatory):
-        atlasobject.sun         = specobj_sun
-        atlasobject.atm         = specobj_telluric
-        atlasobject.target      = target
-        atlasobject.source      = source
-        atlasobject.observatory = observatory
-
     atlasdict = make_dictionary(filename, extension)
 
     obslocation = EarthLocation(lat=atlastools.search_key('ATL_LAT', atlasdict), 
@@ -315,8 +341,9 @@ def make_atlas(filename, extension, loaddata=0):
     
     atlas_obs = observatory(atlastools.search_key('ATL_OBS', atlasdict), obslocation, 'FTS')
     #atlas_obs = observatory('Kitt Peak', EarthLocation.of_site('Kitt Peak'), 'FTS')
-    atlas = atlas(1, 1, atlastools.search_key('OBJECT', atlasdict), atlastools.search_key('ATL_SOUR', atlasdict), atlas_obs)
+    atlas = atlastools.atlas(1, 1, 1, atlastools.search_key('OBJECT', atlasdict), atlastools.search_key('ATL_SOUR', atlasdict), atlas_obs)
     
+    # Issue #1 - hardcoded extraction of column information into spec1D objects
     if loaddata is not 0:
         (file_data, spec_data) = store_data(filename, extension)
         search_key = 'Local Intensity   1'
@@ -326,27 +353,31 @@ def make_atlas(filename, extension, loaddata=0):
 
         atlas.sun = spect_sun
         atlas.atm = spect_atm
+        atlas.components = spec_data
     
+        # Issue #2 - need more column specific information associated with Spec1D object
+        # is putting a range of individual items in the meta dictionary the best way to do this?
         atlas.sun.meta.update(title=atlastools.search_key('TTITL2', atlasdict))
         atlas.atm.meta.update(title=atlastools.search_key('TTITL4', atlasdict))
         
     return atlas
 
 #
-def atlas_spectrum_plot(keyword, data, dictionary, startwave=1*u.nm, endwave=1*u.nm, plot_unit='nm'):
+def atlas_spectrum_plot(column_key, atlas_obj, startwave=1*u.nm, endwave=1*u.nm, plot_unit='nm'):
     '''
     Function that returns a single plot of the 
     provided data given  associated dictionary.
     
     PARAMETERS:
     
-        keyword:    the keyword used to index the Spectrum1D
+        column_key:    the keyword value used to index the Spectrum1D
                     object within the dictionary
                  
-        data:       Spectrum1D object with keyword of data to
-                    be plotted (generated from the atlastools
-                    'store_data' function, indexed as
-                    data['keyword'], where the keyword is a string)
+        atlas_obj:  atlas object containing spec1D object dictionary with 
+                    atlas components to be plotted (generated from the atlastools
+                    'make_atlas' function, indexed as
+                    atlas_obj.components['column_key'], where the column_key 
+                    is a string key value)
               
         dictionary: associated dictionary for the extension
                     of the file containing the data being
@@ -375,23 +406,34 @@ def atlas_spectrum_plot(keyword, data, dictionary, startwave=1*u.nm, endwave=1*u
 
     # convert the spectral axis and the spectral plot ranges
     # to the requested plotting units
-    plot_spectral_axis = data.spectral_axis.to(plot_unit)
+    component_to_plot = atlas_obj.components[column_key]
+    spectral_axis     = component_to_plot.spectral_axis
+    spectral_data     = component_to_plot.flux
+    
+    plot_spectral_axis = spectral_axis.to(plot_unit)
     startwave = startwave.to(plot_unit)
     endwave   = endwave.to(plot_unit)
 
-    plt.plot(plot_spectral_axis, data.flux)
+    plt.plot(plot_spectral_axis, spectral_data)
     
     # extract the FITS keyword column index for the column being plotted
-    # (as by the keyword input)
+    # (as by the column_key input)
     # i.e. the keywords have names like TTITLn - we need to find the value 
-    # of "n" corresponding to the column name provided by keyword
-    kw = list(dictionary.keys())[list(dictionary.values()).index(keyword)]
-    integer_search = re.compile(r'\d+(?:\.\d+)?')
-    value   = integer_search.findall(kw)
+    # of "n" corresponding to the column name provided by column_key
+    #kw = list(dictionary.keys())[list(dictionary.values()).index(column_key)]
+    #integer_search = re.compile(r'\d+(?:\.\d+)?')
+    #col_index   = integer_search.findall(kw)
+    
     # define the keyword names that contain information for the plotted spectrum
-    title   = 'TTITL' + value[0]
-    ylabel  = 'TUNIT' + value[0]
-    descrip = 'TDESC' + value[0]
+    # old way of doing this, pulling keyword values from the header dictionary
+    #col_index = find_column_index(dictionary, column_key)
+    #title   = dictionary['TTITL' + col_index[0]]
+    #ylabel  = dictionary['TUNIT' + col_index[0]]
+    #descrip = dictionary['TDESC' + col_index[0]]
+    # new way using values pulled from spec1D object metadata 
+    title    = (component_to_plot.meta['col_title'])[0]
+    ylabel   = (component_to_plot.meta['unit'])[0]
+    descrip  = (component_to_plot.meta['col_description'])[0]
     
     # explicitly searching for the minimum and maximum in the 
     # full, large atlas array can be very slow,
@@ -416,9 +458,12 @@ def atlas_spectrum_plot(keyword, data, dictionary, startwave=1*u.nm, endwave=1*u
         (endwave >= plot_spectral_axis_max))    : 
              endwave = plot_spectral_axis_max
     plt.xlim(startwave.value, endwave.value)
+    # this should be dynamically set and/or be an optional user input
+    plt.ylim(0.01,1.02)
     
-    plt.title(dictionary[title])
-    #plt.xlabel(dictionary['TUNIT1'])
-    plt.xlabel(startwave.unit)
-    plt.ylabel(dictionary[ylabel])
-    plt.figtext(0,-0.1,dictionary[descrip]);
+    plt.title(title)
+    #plt.xlabel(startwave.unit)
+    xlabel_str = "Wavelength [ " + "{0.unit:s}".format(startwave) + " ]"
+    plt.xlabel(xlabel_str)
+    plt.ylabel(ylabel)
+    plt.figtext(0.35,-0.05,descrip);
