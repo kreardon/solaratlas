@@ -247,6 +247,8 @@ def store_data(filename, extension):
             unit_tags[key] = u.nm
         if unit_tags[key] == 'cm^-1':
             unit_tags[key] = u.k     # kayser: CGS unit of wavenumber
+        if unit_tags[key] == 'W m^(-2) sr^(-1) Angstrom^(-1)':
+            unit_tags[key] = u.W / u.m / u.m / u.sr / u.AA     # kayser: CGS unit of wavenumber
     
     # generating a new dictionary that has the data type keyword now associated with the
     # actual data with the astropy units attached (this is the metadata dictionary returned)
