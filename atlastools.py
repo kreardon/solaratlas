@@ -205,9 +205,9 @@ def filecontent_map(filename):
         newcount = 0
         for waveinterval in finalranges:
             column_type_in = column_type[newcount]
-            matchidx = re.search(r'[A-Za-z]',column_type_in[::-1])
-            coltype_base = (column_type_in[:-matchidx.start(0)]).strip()
-            coltype_idx  = (column_type_in[-matchidx.start(0):]).strip()
+            matchidx       = re.search(r'[A-Za-z]',column_type_in[::-1])
+            coltype_base   = (column_type_in[:-matchidx.start(0)]).strip()
+            coltype_idx    = (column_type_in[-matchidx.start(0):]).strip()
 
             print("Column {} - {} : value range = {:.2f} – {:.2f} {}".format(newcount, coltype_base, waveinterval[0], waveinterval[1], units[newcount]))
             newcount+=1
@@ -392,20 +392,23 @@ def atlas_spectrum_plot(column_key, atlas_obj, startwave=1*u.nm, endwave=1*u.nm,
     PARAMETERS:
     
         column_key:    the keyword value used to index the Spectrum1D
-                    object within the dictionary
-                 
-        atlas_obj:  atlas object containing spec1D object dictionary with 
+                    object within the dictionary              (TYPE: string)
+
+        atlas_obj:  atlas object containing spec1D object dictionary with
                     atlas components to be plotted (generated from the atlastools
                     'make_atlas' function, indexed as
-                    atlas_obj.components['column_key'], where the column_key 
-                    is a string key value)
-              
-        startwave:  starting wavelength of plot range (astropy.units)
+                    atlas_obj.components['column_key'], where the column_key
+                    is a string key value)                    (TYPE: class object)
 
-        endwave:    ending wavelength of plot range (astropy.units)
-        
+        dictionary : dictionary associated with extension data being plotted
+                     (generated from 'make_dictionary')       (TYPE: dictionary)
+
+        startwave:  starting wavelength of plot range         (TYPE: integer * astropy.units)
+
+        endwave:    ending wavelength of plot range           (TYPE: integer * astropy.units)
+    
         plot_unit:  wavelength units in which to make the plot
-                    typical values are ['AA', 'nm', 'micron']
+                    typical values are ['AA', 'nm', 'micron'] (TYPE: string)
 
     RETURNS:
     
