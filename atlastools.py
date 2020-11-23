@@ -59,7 +59,11 @@ def make_dictionary(filename, extension):
     # adding in all extension-specified dictionary values
     for kw in f[extension].header:
         dictionary[kw] = f[extension].header[kw]
-        
+
+    units        = search_key('TUNIT', dictionary)
+    type_columns = search_key('TTYPE', dictionary)
+    print(type_columns)
+     
     return dictionary
 
 #
@@ -86,6 +90,19 @@ def search_key(kw, dictionary):
     res = [val for key, val in dictionary.items() if search_key in key]
 
     return res
+
+#
+def split_column_ttype(ttype_value):
+
+    ttype_info     = {}
+    matchidx       = re.search(r'[A-Za-z]',ttype_value[::-1])
+    coltype_base   = (ttype_value[:-matchidx.start(0)]).strip()
+    coltype_idx    = (ttype_value[-matchidx.start(0):]).strip()
+    ttype_info['Column Type']        = coltype_base
+    ttype_info['Column Type Number'] = int(coltype_idx)
+    print(coltype_base,"  --  ",coltype_idx)
+
+    return ttype_info
 
 #
 def column_information(dictionary):
@@ -252,8 +269,30 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     
     # searching the extension dictionary for keywords tagged TTYPE which are the data
     # and storing them in a list
-    data_to_store = atlastools.search_key('TTYPE', atlasdict)
-    
+    column_types = atlastools.search_key('TTYPE', atlasdict)
+    print("checking ",column_types)
+
+    # now we need to find out which column of the table contains the wavelength
+    # scale to apply to the data
+    # so we will first search for all columns where the TTYPE keyword contains the
+    # 'Wavelength Scale" identifier
+    #
+    # since there could technically be multiple columns with wavelength data,
+    # we will search for the column with the lowest unique identifier index.
+    # normally this should be "1", but you never know what people will do...
+    wavelength_col_idx = 9999
+    wavescale_identifier = 'Wavelength Scale'
+    # loop through all the TTYPEn values and find those with a wavelength scale
+    for ttype_value in column_types:
+        column_type = split_column_ttype(ttype_value)
+        if column_type['Column Type'] == wavescale_identifier:
+            # now check to see if we have found the column with the lowest 
+            # wavelength scale identifier
+            if column_type['Column Type Number'] < wavelength_col_idx:
+                wavelength_col_idx = column_type['Column Type Number']
+                wavelength_primary_id = ttype_value
+    wavelength_scale_ttype = wavelength_primary_id
+
     # this has the wavelength units hardwired, but it really should be determined from
     # the units given in TUNIT for this column
     wavelength_unit  = u.nm
@@ -275,7 +314,7 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     # reading in the actual data per TTYPE keyword, and storing that data in a new
     # dictionary associated with the type of data it is
     stored = {}
-    for value in data_to_store:
+    for value in column_types:
         full_column   = f[1].data[value]
         selected_range = full_column[mask]
         stored[value] = selected_range
@@ -286,7 +325,7 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     
     # associating the data type with the units it required and storing in a new dictionary
     unit_tags = {}
-    for key, unit in zip(data_to_store, units_to_store):
+    for key, unit in zip(column_types, units_to_store):
         unit_tags[key] = unit
         
     # searching through the unit_tags dictionary and changing the value to the proper
@@ -304,7 +343,7 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     # generating a new dictionary that has the data type keyword now associated with the
     # actual data with the astropy units attached (this is the metadata dictionary returned)
     file_data = {}
-    for key in data_to_store:
+    for key in column_types:
         data = stored[key]
         unit = unit_tags[key]
         combined = data * unit
