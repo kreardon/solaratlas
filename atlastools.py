@@ -10,7 +10,9 @@ from astropy.io import fits
 from specutils import Spectrum1D
 from astropy import units as u
 from astropy.coordinates import earth
+from operator import itemgetter 
 import re
+
 
 class observatory:
   def __init__(observatoryobj, obsname, obscoord, instrument):
@@ -19,6 +21,14 @@ class observatory:
     observatoryobj.location   = obscoord
     observatoryobj.instrument = instrument
 
+class target:
+  def __init__(target, object_name, target_name, solar_mu, solar_rad_distance, integration_area):
+    targetobj.name            = object_name
+    targetobj.feature_type    = target_name
+    targetobj.mu              = solar_mu
+    targetobj.raddist         = solar_rad_distance
+    targetobj.area            = integration_area
+    
 # Issue #3 - very rudimentary atlas object - needs to be fleshed out 
 class atlas:
   def __init__(atlasobject, specobj_sun, specobj_telluric, specobj_all, target, source, observatory):
@@ -59,15 +69,11 @@ def make_dictionary(filename, extension):
     # adding in all extension-specified dictionary values
     for kw in f[extension].header:
         dictionary[kw] = f[extension].header[kw]
-
-    units        = search_key('TUNIT', dictionary)
-    type_columns = search_key('TTYPE', dictionary)
-    print(type_columns)
      
     return dictionary
 
 #
-def search_key(kw, dictionary):
+def search_key(keyword_string, dictionary):
     '''
     Searches through a dictionary (generated
     for file via function 'make_dictionary')
@@ -75,7 +81,7 @@ def search_key(kw, dictionary):
     with all values matching that keyword.
 
     PARAMETERS:
-        kw: keyword the user wants to search the
+        keyword_string: keyword the user wants to search the
             dictionary for (must be a string)
 
         dictionary: a python dictionary containing
@@ -83,16 +89,49 @@ def search_key(kw, dictionary):
                     specified atlas file (generated
                     via function 'make_dictionary')
     RETURNS:
-        res: list containing the value results of the search
+        res: (n,2) list containing the matched keyword and 
+             the value associated with that keyword
     '''
 
-    search_key = kw
-    res = [val for key, val in dictionary.items() if search_key in key]
+    # initialize output lists
+    keyword_list   = []
+    keyword_values = []
 
-    return res
+    count = 0
+    for keyword, value in dictionary.items():
+        if keyword_string in keyword:
+            keyword_list.append(keyword)
+            keyword_values.append(value)
+            count += 1
+    
+    # if no matching keywords were found, return default values
+    if count == 0:
+        keyword_list   = ['No Keyword Match']
+        keyword_values = [np.nan]
+
+    return (keyword_values, keyword_list)
 
 #
 def split_column_ttype(ttype_value):
+    '''
+    Splits a value provided in the TTYPEn FITS header
+    into its base data type (e.g. 'Wavelength Scale') 
+    and the unique identifier (an incrementing integer) 
+    appended on the type string.
+    Since the data type may contain spaces and the number 
+    of spaces between the datatype and identifier is not
+    fixed, we need to split the string relying on the 
+    assumption that the data type contains only letters 
+    (upper or lower case) and spaces.
+
+    PARAMETERS:
+        ttype_value: input string containing composite
+                     column identifier string
+
+    RETURNS:
+        ttype_info: dictionary contain data type string
+                    and indentifier value (as an integer)
+    '''
 
     ttype_info     = {}
     matchidx       = re.search(r'[A-Za-z]',ttype_value[::-1])
@@ -107,28 +146,28 @@ def split_column_ttype(ttype_value):
 #
 def column_information(dictionary):
     
-    columns = search_key('TFORM', dictionary)
+    columns = (search_key('TFORM', dictionary))[0]
     
     column_info = []
     
     for i in range(len(columns)):
-        comptype = search_key('TTYPE', dictionary)
-        column_info.append(comptype)
+        coltypes     = (search_key('TTYPE', dictionary))[0]
+        column_info.append(coltypes[0])
         
-        units = search_key('TUNIT', dictionary)
+        units        = (search_key('TUNIT', dictionary))[0]
         column_info.append(units)
 
-        axislabels = search_key('TDESC', dictionary)
+        axislabels   = (search_key('TDESC', dictionary))[0]
         column_info.append(axislabels)
 
-        target = search_key('TOBJC', dictionary)
-        column_info.append(target)
+        targets      = (search_key('TOBJC', dictionary))[0]
+        column_info.append(targets)
 
-        deriv_methd = search_key('TMTHD', dictionary)
-        column_info.append(deriv_methd)
+        deriv_methds = (search_key('TMTHD', dictionary))[0]
+        column_info.append(deriv_methds)
 
-        tel = search_key('TWATM', dictionary)
-        column_info.append(tel)
+        has_telluric = (search_key('TWATM', dictionary))[0]
+        column_info.append(has_telluric)
     
     for a, b, c, d, e, f in zip(column_info[0],column_info[1],column_info[2],column_info[3],column_info[4], column_info[5]):
         print("-----COLUMN-----\n\nComponent type: {}\nColumn data units: {}\nAxis Labels: {}\nTarget: {}\nDerivation Method: {}\nIncludes Telluric Absorption: {}\n".format(a,b,c,d,e,f))
@@ -140,12 +179,44 @@ def find_column_index(dictionary, column_key):
     # i.e. the keywords have names like TTITLn - we need to find the value 
     # of "n" corresponding to the column name provided by column_key
 
-    kw = list(dictionary.keys())[list(dictionary.values()).index(column_key)]
-    #integer_search = re.compile(r'\d+(?:\.\d+)?')
-    integer_search = re.compile(r'[A-Z]+(\d+)')
-    col_index   = integer_search.findall(kw)
+    #if any(word in keywords for word in text)
     
-    return col_index
+    keyword_match = []
+    for keyword, value in dictionary.items():
+        if value == column_key:
+            keyword_match.append(keyword)
+    print(type(keyword_match))
+    
+    #kw = list(dictionary.keys())[list(dictionary.values()).index(column_key)]
+    #integer_search = re.compile(r'\d+(?:\.\d+)?')
+    column_indices = []
+    for match in keyword_match:
+        print(match)
+        integer_search = re.compile(r'[A-Z]+(\d+)')
+        column_indices.append(integer_search.findall(match))
+    
+    return (column_indices, keyword_match)
+
+def tunit_str_to_unit(fits_unit_text):
+    # convert the (allowed) string values for the TUNITn keyword
+    # into a proper astropy unit
+    # this is required for reading the data into a Spectrum1D
+    
+    if fits_unit_text.lower() == 'relint' or fits_unit_text.lower() == 'flux' :
+        unit_type = u.dimensionless_unscaled
+    elif fits_unit_text.lower() == 'nanometers' or fits_unit_text.lower() == 'nm':
+        unit_type = u.nm
+    elif fits_unit_text.lower() == 'angstrom' or fits_unit_text.upper() == 'A':
+        unit_type = u.nm
+    elif fits_unit_text.lower() == 'cm^-1':
+        unit_type = u.k     # kayser: CGS unit of wavenumber
+    elif fits_unit_text.lower() == 'W m^(-2) sr^(-1) Angstrom^(-1)':
+        unit_type = u.W / u.m / u.m / u.sr / u.AA     # kayser: CGS unit of wavenumber
+    else:
+        unit_type = u.dimensionless_unscaled
+    
+    return unit_type
+               
 #
 def telluric_info(dictionary):
     '''
@@ -164,9 +235,9 @@ def telluric_info(dictionary):
     types = []
     present = []
     
-    for value in search_key('TTYPE', dictionary):
+    for value in (search_key('TTYPE', dictionary))[0]:
         types.append(value)
-    for value in search_key('TWATM', dictionary):
+    for value in (search_key('TWATM', dictionary))[0]:
         present.append(value)
         
     for i in present:
@@ -195,7 +266,9 @@ def filecontent_map(filename):
     print("Object: {}".format(file[0].header['OBJECT']))
     print("Atlas source: {}".format(file[0].header['ATL_SOUR']))
     print("Atlas acquisition site: {}".format(file[0].header['ATL_OBS']))
-    print("Atlas wavelength coverage: {:.2f} {} – {:.2f} {}\n".format(file[0].header['WAVEMIN'], file[0].header['CUNIT1'], file[0].header['WAVEMAX'], file[0].header['CUNIT1']))
+    print("Atlas wavelength coverage: {:.2f} {} – {:.2f} {}\n".format(file[0].header['WAVEMIN'], 
+                                                                      file[0].header['CUNIT1'], file[0].header['WAVEMAX'],
+                                                                      file[0].header['CUNIT1']))
 
 # skips the primary HDU because not a binary table of data and info
     for i in range(1,len(file)):
@@ -203,18 +276,17 @@ def filecontent_map(filename):
         
         atlasdict = make_dictionary(filename,i)
         
-        columns = search_key('COLNUM', atlasdict)
         count = 1
             
-        minimums = search_key('TDMIN', atlasdict)
-        maximums = search_key('TDMAX', atlasdict)
+        minimums = (search_key('TDMIN', atlasdict))[0]
+        maximums = (search_key('TDMAX', atlasdict))[0]
 
         waverange = [x for y in zip(minimums, maximums) for x in y]
         res = list(zip(waverange, waverange[1:] + waverange[:1]))
         finalranges = res[::2]
 
-        units = search_key('TUNIT', atlasdict)
-        column_type = search_key('TTYPE', atlasdict)
+        units       = (search_key('TUNIT', atlasdict))[0]
+        column_type = (search_key('TTYPE', atlasdict))[0]
         #matchidx = re.search(r'[A-Za-z]',column_type[::-1])
         #coltype_base = (column_type[:-matchidx.start(0)]).strip()
         #coltype_idx  = (column_type[-matchidx.start(0):]).strip()
@@ -226,7 +298,8 @@ def filecontent_map(filename):
             coltype_base   = (column_type_in[:-matchidx.start(0)]).strip()
             coltype_idx    = (column_type_in[-matchidx.start(0):]).strip()
 
-            print("Column {} - {} : value range = {:.2f} – {:.2f} {}".format(newcount, coltype_base, waveinterval[0], waveinterval[1], units[newcount]))
+            print("Column {} - {} : value range = {:.2f} – {:.2f} {}".format(newcount, 
+                                    coltype_base, waveinterval[0], waveinterval[1], units[newcount]))
             newcount+=1
         print("\n\n")
     count += 1
@@ -269,34 +342,43 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     
     # searching the extension dictionary for keywords tagged TTYPE which are the data
     # and storing them in a list
-    column_types = atlastools.search_key('TTYPE', atlasdict)
+    column_types,column_types_kwrds = (atlastools.search_key('TTYPE', atlasdict))
     print("checking ",column_types)
+    print("keywords ",column_types_kwrds)
 
     # now we need to find out which column of the table contains the wavelength
     # scale to apply to the data
     # so we will first search for all columns where the TTYPE keyword contains the
     # 'Wavelength Scale" identifier
     #
-    # since there could technically be multiple columns with wavelength data,
-    # we will search for the column with the lowest unique identifier index.
+    # since there could technically be multiple columns with wavelength data 
+    # (e.g. wavelength and wavenumber), we will search for the column with 
+    # the lowest unique identifier index.
     # normally this should be "1", but you never know what people will do...
-    wavelength_col_idx = 9999
-    wavescale_identifier = 'Wavelength Scale'
+    wavelength_col_idx       = 9999
+    wavescale_identifier     = 'Wavelength Scale'
+    wavelength_primary_id    = ''
+    wavelength_primary_ttype = ''
     # loop through all the TTYPEn values and find those with a wavelength scale
     for ttype_value in column_types:
+        print(ttype_value)
+        # this splits the TTYPE value into its (non-unique) type and the incrementing index value
         column_type = split_column_ttype(ttype_value)
         if column_type['Column Type'] == wavescale_identifier:
-            # now check to see if we have found the column with the lowest 
+            # now check to see if we have found the column with a lower
             # wavelength scale identifier
+            # if so, repopulate values of wavelength scale identifiers
             if column_type['Column Type Number'] < wavelength_col_idx:
-                wavelength_col_idx = column_type['Column Type Number']
-                wavelength_primary_id = ttype_value
-    wavelength_scale_ttype = wavelength_primary_id
+                wavelength_col_idx       = column_type['Column Type Number']
+                wavelength_primary_id    = ttype_value
+                wavelength_primary_ttype = column_types_kwrds[column_types.index(wavelength_primary_id)]
+                print("Primary Wavelength Scale",wavelength_primary_ttype,wavelength_primary_id)
 
-    # this has the wavelength units hardwired, but it really should be determined from
-    # the units given in TUNIT for this column
-    wavelength_unit  = u.nm
-    wavelength_scale = f[1].data['Wavelength Scale   1'] * wavelength_unit
+    wavelength_primary_colindex = (find_column_index(atlasdict, wavelength_primary_id))[0]
+    unit             = (atlastools.search_key('TUNIT' + wavelength_primary_colindex[0].pop(), atlasdict))[0]
+    print(type(unit[0]),unit[0])
+    wavelength_unit  = tunit_str_to_unit(unit[0])
+    wavelength_scale = f[1].data[wavelength_primary_id] * wavelength_unit
 
     atlas_min = np.min(wavelength_scale)
     atlas_max = np.max(wavelength_scale)
@@ -304,9 +386,9 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     if ((startwave < atlas_min) or 
         (startwave > atlas_max)) : 
          startwave = atlas_min
-    if ((endwave <= startwave)  or 
-        (endwave >= atlas_max))  : 
-         endwave = atlas_max
+    if ((endwave  <= startwave)  or 
+        (endwave  >= atlas_max))  : 
+         endwave   = atlas_max
 
     mask = ((wavelength_scale > startwave) & (wavelength_scale < endwave))
     print(np.sum(mask))
@@ -315,13 +397,13 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     # dictionary associated with the type of data it is
     stored = {}
     for value in column_types:
-        full_column   = f[1].data[value]
+        full_column    = f[1].data[value]
         selected_range = full_column[mask]
-        stored[value] = selected_range
+        stored[value]  = selected_range
         
     # searching the extension dictionary for keywords tagged TUNIT which are the units
     # associated with the data and storing them in a list
-    units_to_store = atlastools.search_key('TUNIT', atlasdict)
+    units_to_store = (atlastools.search_key('TUNIT', atlasdict))[0]
     
     # associating the data type with the units it required and storing in a new dictionary
     unit_tags = {}
@@ -331,23 +413,17 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     # searching through the unit_tags dictionary and changing the value to the proper
     # astropy unit quantity (required for reading into Spectrum1D)
     for key, value in unit_tags.items():
-        if value == 'Relint':
-            unit_tags[key] = u.dimensionless_unscaled
-        if value == 'Nanometers':
-            unit_tags[key] = u.nm
-        if unit_tags[key] == 'cm^-1':
-            unit_tags[key] = u.k     # kayser: CGS unit of wavenumber
-        if unit_tags[key] == 'W m^(-2) sr^(-1) Angstrom^(-1)':
-            unit_tags[key] = u.W / u.m / u.m / u.sr / u.AA     # kayser: CGS unit of wavenumber
-    
+        unit_tags[key] = tunit_str_to_unit(value)
+
     # generating a new dictionary that has the data type keyword now associated with the
     # actual data with the astropy units attached (this is the metadata dictionary returned)
     file_data = {}
     for key in column_types:
-        data = stored[key]
-        unit = unit_tags[key]
-        combined = data * unit
-        file_data[key] = combined
+        key_value            = key
+        data                 = stored[key_value]
+        unit                 = unit_tags[key_value]
+        combined             = data * unit
+        file_data[key_value] = combined
     
     # Finally, pushing the file metadata through Spectrum1D to create a dictionary of Spec1D objects
     # associated with the type of data they are (this is the Spec1D dictionary returned)
@@ -356,18 +432,16 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
     spec_data = {}
     for key in file_data:
         if re.search(r'Wavelength Scale*', key) is None:
-#        if key != 'Wavelength Scale   1':
-#            if key != 'Wavelength Scale   2':
-                col_index = find_column_index(atlasdict, key)
+                col_index = (find_column_index(atlasdict, key))[0].pop()
                 finalized = Spectrum1D(spectral_axis=file_data['Wavelength Scale   1'], flux=file_data[key])
-                finalized.meta.update(unit            = atlastools.search_key('TUNIT' + col_index[0], atlasdict))
-                finalized.meta.update(has_telluric    = atlastools.search_key('TWATM' + col_index[0], atlasdict))
-                finalized.meta.update(has_solar       = atlastools.search_key('TWSUN' + col_index[0], atlasdict))
-                finalized.meta.update(observed_object = atlastools.search_key('TOBJC' + col_index[0], atlasdict))
-                finalized.meta.update(observed_target = atlastools.search_key('TTRGT' + col_index[0], atlasdict))
-                finalized.meta.update(col_title       = atlastools.search_key('TTITL' + col_index[0], atlasdict))
-                finalized.meta.update(col_label       = atlastools.search_key('TLABL' + col_index[0], atlasdict))
-                finalized.meta.update(col_description = atlastools.search_key('TDESC' + col_index[0], atlasdict))
+                finalized.meta.update(unit            = (atlastools.search_key('TUNIT' + col_index[0], atlasdict))[0])
+                finalized.meta.update(has_telluric    = (atlastools.search_key('TWATM' + col_index[0], atlasdict))[0])
+#                finalized.meta.update(has_solar       = (atlastools.search_key('TWSUN' + col_index[0], atlasdict))[0])
+                finalized.meta.update(observed_object = (atlastools.search_key('TOBJC' + col_index[0], atlasdict))[0])
+                finalized.meta.update(observed_target = (atlastools.search_key('TTRGT' + col_index[0], atlasdict))[0])
+                finalized.meta.update(col_title       = (atlastools.search_key('TTITL' + col_index[0], atlasdict))[0])
+                finalized.meta.update(col_label       = (atlastools.search_key('TLABL' + col_index[0], atlasdict))[0])
+                finalized.meta.update(col_description = (atlastools.search_key('TDESC' + col_index[0], atlasdict))[0])
                 spec_data[key] = finalized
                 
     return file_data, spec_data
@@ -394,13 +468,15 @@ def make_atlas(filename, extension, startwave=1*u.nm, endwave=1*u.nm, loaddata=0
 
     atlasdict = make_dictionary(filename, extension)
 
-    obslocation = EarthLocation(lat=atlastools.search_key('ATL_LAT', atlasdict), 
-                                lon=atlastools.search_key('ATL_LONG', atlasdict), 
-                                height=atlastools.search_key('ATL_ALT', atlasdict))
+    obslocation = EarthLocation(lat   = (atlastools.search_key('ATL_LAT', atlasdict))[0], 
+                                lon   = (atlastools.search_key('ATL_LONG', atlasdict))[0], 
+                                height= (atlastools.search_key('ATL_ALT', atlasdict))[0])
     
-    atlas_obs = observatory(atlastools.search_key('ATL_OBS', atlasdict), obslocation, 'FTS')
+    atlas_obs = observatory((atlastools.search_key('ATL_OBS', atlasdict))[0], obslocation, 'FTS')
     #atlas_obs = observatory('Kitt Peak', EarthLocation.of_site('Kitt Peak'), 'FTS')
-    atlas = atlastools.atlas(1, 1, 1, atlastools.search_key('OBJECT', atlasdict), atlastools.search_key('ATL_SOUR', atlasdict), atlas_obs)
+    atlas = atlastools.atlas(0, 0, 1, 
+                             (atlastools.search_key('OBJECT', atlasdict))[0], 
+                             (atlastools.search_key('ATL_SOUR', atlasdict))[0], atlas_obs)
     
     # Issue #1 - hardcoded extraction of column information into spec1D objects
     if loaddata is not 0:
@@ -408,17 +484,24 @@ def make_atlas(filename, extension, startwave=1*u.nm, endwave=1*u.nm, loaddata=0
         (file_data, spec_data) = store_data(filename, extension, startwave=startwave, endwave=endwave)
         search_key = 'Local Intensity   1'
         spect_sun  = spec_data.get(search_key)
+        if spect_sun is not None:
+            print("populating solar atlas object")
+            atlas.sun = spect_sun
+            spect_sun_index = (find_column_index(atlasdict, search_key))[0].pop()
+            atlas.sun.meta.update(title=(atlastools.search_key('TTITL' + spect_sun_index[0], atlasdict))[0])
+
         search_key = 'Telluric Spectrum   1'
         spect_atm  = spec_data.get(search_key)
+        if spect_atm is not None:
+            print("populating telluric atlas object")
+            spect_atm_index = (find_column_index(atlasdict, search_key))[0].pop()
+            atlas.atm = spect_atm
+            atlas.atm.meta.update(title=(atlastools.search_key('TTITL' + spect_atm_index[0], atlasdict))[0])
 
-        atlas.sun = spect_sun
-        atlas.atm = spect_atm
         atlas.components = spec_data
     
         # Issue #2 - need more column specific information associated with Spec1D object
         # is putting a range of individual items in the meta dictionary the best way to do this?
-        atlas.sun.meta.update(title=atlastools.search_key('TTITL2', atlasdict))
-        atlas.atm.meta.update(title=atlastools.search_key('TTITL4', atlasdict))
         
     return atlas
 
