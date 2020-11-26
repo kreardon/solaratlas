@@ -110,7 +110,86 @@ def search_key(keyword_string, dictionary):
         keyword_values = [np.nan]
 
     return (keyword_values, keyword_list)
+  
+#
+def filesearch():
+    '''
+    Directory and file searching function that prints lists 
+    of atlas-specific files in user's current directory + 
+    subdirectories, directory where atlastools.py resides + 
+    subdirectories, and the atlasfiles/ directory + 
+    subdirectories if it exists.
+    
+    PARAMETERS:
+    ----------
+    
+        **NO PARAMETER(S) REQUIRED**
+        
+    RETURNS:
+    -------
+    
+        **NO RETURN VALUE, just printed information**
+    '''
 
+    import os
+    from fnmatch import fnmatch
+
+    def path_leaf(path):
+        import ntpath
+        head, tail = ntpath.split(path)
+        return tail or ntpath.basename(head)
+
+    # assigning current directory variable
+    root = os.getcwd()
+
+    # finding where atlastools.py is
+    atlastools_location = os.path.abspath(atlastools.__file__)
+
+    # generating path source for atlastools.py location
+    module_source = os.path.dirname(atlastools_location)
+
+    # likely types of atlas file extensions to look for
+    pattern = "*.fits"
+    pattern2 = "*.gz"
+
+    # locating atlas files in the current directory
+    print("Current directory: {}\n".format(root))
+    print("Available atlas files:\n")
+
+    for path, subdirs, files in os.walk(root):
+        for name in files:
+            if fnmatch(name, pattern):
+                print(os.path.join(path_leaf(path), name))
+            if fnmatch(name, pattern2):
+                print(os.path.join(path_leaf(path), name))
+    print("______________________________")
+
+    # locating atlas files in the atlastools.py directory        
+    print("\natlastools.py directory: {}\n".format(module_source))
+    print("Available atlas files:\n")
+
+    for path, subdirs, files in os.walk(module_source):
+        for name in files:
+            if fnmatch(name, pattern):
+                print(os.path.join(path_leaf(path), name))
+            if fnmatch(name, pattern2):
+                print(os.path.join(path_leaf(path), name))
+    print("______________________________")
+
+    # locating atlas files in the atlasfiles/ directory
+    atlasfiles_source = module_source + '/atlasfiles/'
+
+    if os.path.isdir(atlasfiles_source) == True:
+        print("\natlasfiles/ directory: {}\n".format(module_source))
+        print("Available atlas files:\n")
+        for path, subdirs, files in os.walk(atlasfiles_source):
+            for name in files:
+                if fnmatch(name, pattern):
+                    print(os.path.join(path_leaf(path), name))
+                if fnmatch(name, pattern2):
+                    print(os.path.join(path_leaf(path), name))
+        print("______________________________")
+        
 #
 def split_column_ttype(ttype_value):
     '''
