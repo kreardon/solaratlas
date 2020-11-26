@@ -139,11 +139,19 @@ def filesearch():
         head, tail = ntpath.split(path)
         return tail or ntpath.basename(head)
 
-    # assigning current directory variable
     root = os.getcwd()
 
     # finding where atlastools.py is
-    atlastools_location = os.path.abspath(atlastools.__file__)
+    module = 'atlastools.py'
+    for path, subdirs, files in os.walk(root):
+        for name in files:
+            if fnmatch(name, module):
+                atlastools_location = os.path.join(path, module)
+
+    # keeping this in case the module needs to be manually loaded in- 
+    # necessary for using 'atlastools.__file__'
+    #from importlib.machinery import SourceFileLoader
+    #atlastools = SourceFileLoader("atlastools", atlastools_location).load_module()
 
     # generating path source for atlastools.py location
     module_source = os.path.dirname(atlastools_location)
