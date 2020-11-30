@@ -13,7 +13,26 @@ from astropy.coordinates import earth
 from operator import itemgetter 
 import re
 
+class atlas_file_extension_info:
+    def __init__(atlas_file_exten_obj, wavemin, wavemax, wavenum, numcols, coltypes, has_solar, has_telluric):
+        atlas_file_obj.wavemin        = wavemin   # 400 * u.nm
+        atlas_file_obj.wavemax        = wavemax   # 700 * u.nm
+        atlas_file_obj.wavenum        = wavenum   # column length (e.g. 324561) 
+        atlas_file_obj.numcols        = numcols   # number of columns in extension
+        atlas_file_obj.coltypes       = coltypes  # list ['Wavelength Scale 1', 'Local Intensity 1', 'Local Intensity 2',...]
+        atlas_file_obj.has_solar      = has_solar #    list [-1, 1, 1, 0]
+        atlas_file_obj.has_telluric   = has_telluric # list [-1, 0, 1, 1]
 
+class atlas_file_content:
+    def __init__(atlas_file_obj, filename, filepath, source, observatory, version, obsobject, extension_info):
+        atlas_file_obj.filename       = filename
+        atlas_file_obj.filepath       = filepath
+        atlas_file_obj.source         = source
+        atlas_file_obj.observatory    = observatory
+        atlas_file_obj.version        = version
+        atlas_file_obj.obsobject      = obsobject
+        atlas_file_obj.extension_info = extension_info
+        
 class observatory:
   def __init__(observatoryobj, obsname, obscoord, instrument):
     observatoryobj.name       = obsname
@@ -521,6 +540,7 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
         if re.search(r'Wavelength Scale*', key) is None:
                 col_index = (find_column_index(atlasdict, key))[0].pop()
                 finalized = Spectrum1D(spectral_axis=file_data['Wavelength Scale   1'], flux=file_data[key])
+                
                 finalized.meta.update(unit            = (atlastools.search_key('TUNIT' + col_index[0], atlasdict))[0])
                 finalized.meta.update(has_telluric    = (atlastools.search_key('TWATM' + col_index[0], atlasdict))[0])
 #                finalized.meta.update(has_solar       = (atlastools.search_key('TWSUN' + col_index[0], atlasdict))[0])
