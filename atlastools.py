@@ -14,6 +14,20 @@ from operator import itemgetter
 import re
 from pathlib import Path
 
+class observatory:
+    def __init__(observatoryobj, obsname, obscoord, instrument):
+        observatoryobj.name       = obsname
+        #observatoryobj.location   = earth.EarthLocation.of_site(obsname)
+        observatoryobj.location   = obscoord
+        observatoryobj.instrument = instrument
+
+class target:
+    def __init__(target, object_name, target_name, solar_mu, solar_rad_distance, integration_area):
+        targetobj.name            = object_name
+        targetobj.feature_type    = target_name
+        targetobj.mu              = solar_mu
+        targetobj.raddist         = solar_rad_distance
+        targetobj.area            = integration_area
 
 class atlas_file_content:
     class atlas_file_extension_info:
@@ -26,40 +40,27 @@ class atlas_file_content:
             atlas_file_obj.has_solar      = has_solar    # list [-1, 1, 1, 0]
             atlas_file_obj.has_telluric   = has_telluric # list [-1, 0, 1, 1]
 
-    def __init__(atlas_file_obj, filename, filepath, source, observatory, version, obsobject, extension_info):
+    def __init__(atlas_file_obj, filename, filepath, source, observatory, version, target, extension_info):
         atlas_file_obj.filename       = filename
         atlas_file_obj.filepath       = filepath
         atlas_file_obj.source         = source
         atlas_file_obj.observatory    = observatory
+        atlas_file_obj.target         = target
         atlas_file_obj.version        = version
-        atlas_file_obj.obsobject      = obsobject
         atlas_file_obj.extension_info = extension_info
         
-class observatory:
-  def __init__(observatoryobj, obsname, obscoord, instrument):
-    observatoryobj.name       = obsname
-    #observatoryobj.location   = earth.EarthLocation.of_site(obsname)
-    observatoryobj.location   = obscoord
-    observatoryobj.instrument = instrument
-
-class target:
-  def __init__(target, object_name, target_name, solar_mu, solar_rad_distance, integration_area):
-    targetobj.name            = object_name
-    targetobj.feature_type    = target_name
-    targetobj.mu              = solar_mu
-    targetobj.raddist         = solar_rad_distance
-    targetobj.area            = integration_area
     
 # Issue #3 - very rudimentary atlas object - needs to be fleshed out 
 class atlas:
-  def __init__(atlasobject, specobj_sun, specobj_telluric, specobj_all, target, source, observatory):
-    atlasobject.target      = target
-    atlasobject.source      = source
-    atlasobject.observatory = observatory
-    # atlas data here
-    atlasobject.sun         = specobj_sun           # when populated, should be a spec1D object
-    atlasobject.atm         = specobj_telluric      # when populated, should be a spec1D object
-    atlasobject.components  = specobj_all           # when populated, should be a dictionary of spec1D object
+
+    def __init__(atlasobject, specobj_sun, specobj_telluric, specobj_all, target, source, observatory):
+        atlasobject.target      = target
+        atlasobject.source      = source
+        atlasobject.observatory = observatory
+        # atlas data here
+        atlasobject.sun         = specobj_sun           # when populated, should be a spec1D object
+        atlasobject.atm         = specobj_telluric      # when populated, should be a spec1D object
+        atlasobject.components  = specobj_all           # when populated, should be a dictionary of spec1D object
         
 #
 def make_dictionary(filename, extension):
@@ -343,25 +344,27 @@ def column_information(dictionary):
         print("-----COLUMN-----\n\nComponent type: {}\nColumn data units: {}\nAxis Labels: {}\nTarget: {}\nDerivation Method: {}\nIncludes Telluric Absorption: {}\n".format(a,b,c,d,e,f))
 
 #
-def find_column_index(dictionary, column_key):
+def find_column_index(dictionary, column_key, keyword_base=False):
     # extract the FITS keyword column index for the column being plotted
     # (as defined by the column_key input)
     # i.e. the keywords have names like TTITLn - we need to find the value 
     # of "n" corresponding to the column name provided by column_key
 
     #if any(word in keywords for word in text)
+    if keyword_base == False:
+        keyword_base = '[0-9]$'        
     
     keyword_match = []
     for keyword, value in dictionary.items():
-        if value == column_key:
+        if value == column_key and re.search(keyword_base,keyword):
             keyword_match.append(keyword)
-    print(type(keyword_match))
+    #print("type - ",type(keyword_match))
     
     #kw = list(dictionary.keys())[list(dictionary.values()).index(column_key)]
     #integer_search = re.compile(r'\d+(?:\.\d+)?')
     column_indices = []
     for match in keyword_match:
-        print(match)
+    #    print("match - ", match)
         integer_search = re.compile(r'[A-Z]+(\d+)')
         column_indices.append(integer_search.findall(match))
     
@@ -427,29 +430,43 @@ def filecontent_map(filename):
     RETURNS:
         **NO RETURN VALUE, just printed information**
     '''
-    
+
+    from astropy.coordinates import EarthLocation
+    import atlastools
+
     file = fits.open(filename, memmap=True)
     
     
     print("General file information:\n")
     
     print("Object: {}".format(file[0].header['OBJECT']))
+    print("Observatory: {}".format(file[0].header['ATL_OBS']))
+    print("Instrument: {}".format(file[0].header['ATL_INST']))
     print("Atlas source: {}".format(file[0].header['ATL_SOUR']))
     print("Atlas acquisition site: {}".format(file[0].header['ATL_OBS']))
     print("Atlas wavelength coverage: {:.2f} {} – {:.2f} {}\n".format(file[0].header['WAVEMIN'], 
                                                                       file[0].header['CUNIT1'], file[0].header['WAVEMAX'],
                                                                       file[0].header['CUNIT1']))
 
+    obslocation = EarthLocation(lat   = file[0].header['ATL_LAT'], 
+                                lon   = file[0].header['ATL_LONG'], 
+                                height= file[0].header['ATL_ALT'])
+    
+    atlas_observatory = atlastools.observatory(file[0].header['ATL_OBS'], obslocation, file[0].header['ATL_INST'])
+
+    atlas_target = file[0].header['OBJECT'] 
+    #atlas_target = atlastools.observatory(file[0].header['OBJECT'], file[0].header['ATLTRGT'])
 
     inputfilename_fullpath   = (Path(filename).resolve())
     inputfilename_directory  = inputfilename_fullpath.parent
     source                   = file[0].header['ATL_SOUR'] 
-    observatory              = file[0].header['ATL_OBS'] 
-    version                  = '1.1'
-    obsobject                = file[0].header['OBJECT'] 
+    observatory              = atlas_observatory
+    instrument               = file[0].header['ATL_INST'] 
+    version                  = file[0].header['FILEVER'] 
+    target                   = atlas_target 
     extension_info           = []
     
-    atlas_filemap1 = atlas_file_content(filename, inputfilename_directory, source, observatory, version, obsobject, extension_info)
+    atlas_filemap1 = atlas_file_content(filename, inputfilename_directory, source, observatory, version, target, extension_info)
                                         
 # skips the primary HDU because not a binary table of data and info
     for i in range(1,len(file)):
@@ -557,7 +574,8 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
                 wavelength_primary_ttype = column_types_kwrds[column_types.index(wavelength_primary_id)]
                 print("Primary Wavelength Scale",wavelength_primary_ttype,wavelength_primary_id)
 
-    wavelength_primary_colindex = (find_column_index(atlasdict, wavelength_primary_id))[0]
+    wavelength_primary_colindex = (find_column_index(atlasdict, wavelength_primary_id, keyword_base='TTYPE'))[0]
+    print(wavelength_primary_id,wavelength_primary_colindex)
     unit             = (atlastools.search_key('TUNIT' + wavelength_primary_colindex[0].pop(), atlasdict))[0]
     print(type(unit[0]),unit[0])
     wavelength_unit  = tunit_str_to_unit(unit[0])
@@ -621,7 +639,7 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
                 finalized.meta.update(col_type        = (atlastools.search_key('TTYPE' + col_index[0], atlasdict))[0])
                 finalized.meta.update(unit            = (atlastools.search_key('TUNIT' + col_index[0], atlasdict))[0])
                 finalized.meta.update(has_telluric    = (atlastools.search_key('TWATM' + col_index[0], atlasdict))[0])
-#                finalized.meta.update(has_solar       = (atlastools.search_key('TWSOL' + col_index[0], atlasdict))[0])
+                finalized.meta.update(has_solar       = (atlastools.search_key('TWSOL' + col_index[0], atlasdict))[0])
                 finalized.meta.update(observed_object = (atlastools.search_key('TOBJC' + col_index[0], atlasdict))[0])
                 finalized.meta.update(observed_target = (atlastools.search_key('TTRGT' + col_index[0], atlasdict))[0])
                 finalized.meta.update(col_title       = (atlastools.search_key('TTITL' + col_index[0], atlasdict))[0])
