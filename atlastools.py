@@ -12,18 +12,20 @@ from astropy import units as u
 from astropy.coordinates import earth
 from operator import itemgetter 
 import re
+from pathlib import Path
 
-class atlas_file_extension_info:
-    def __init__(atlas_file_exten_obj, wavemin, wavemax, wavenum, numcols, coltypes, has_solar, has_telluric):
-        atlas_file_obj.wavemin        = wavemin   # 400 * u.nm
-        atlas_file_obj.wavemax        = wavemax   # 700 * u.nm
-        atlas_file_obj.wavenum        = wavenum   # column length (e.g. 324561) 
-        atlas_file_obj.numcols        = numcols   # number of columns in extension
-        atlas_file_obj.coltypes       = coltypes  # list ['Wavelength Scale 1', 'Local Intensity 1', 'Local Intensity 2',...]
-        atlas_file_obj.has_solar      = has_solar #    list [-1, 1, 1, 0]
-        atlas_file_obj.has_telluric   = has_telluric # list [-1, 0, 1, 1]
 
 class atlas_file_content:
+    class atlas_file_extension_info:
+        def __init__(atlas_file_exten_obj, wavemin, wavemax, wavenum, numcols, coltypes, has_solar, has_telluric):
+            atlas_file_obj.wavemin        = wavemin      # 400 * u.nm
+            atlas_file_obj.wavemax        = wavemax      # 700 * u.nm
+            atlas_file_obj.wavenum        = wavenum      # column length (e.g. 324561) 
+            atlas_file_obj.numcols        = numcols      # number of columns in extension
+            atlas_file_obj.coltypes       = coltypes     # list ['Wavelength Scale 1', 'Local Intensity 1', etc. 2']
+            atlas_file_obj.has_solar      = has_solar    # list [-1, 1, 1, 0]
+            atlas_file_obj.has_telluric   = has_telluric # list [-1, 0, 1, 1]
+
     def __init__(atlas_file_obj, filename, filepath, source, observatory, version, obsobject, extension_info):
         atlas_file_obj.filename       = filename
         atlas_file_obj.filepath       = filepath
@@ -376,6 +378,17 @@ def filecontent_map(filename):
                                                                       file[0].header['CUNIT1'], file[0].header['WAVEMAX'],
                                                                       file[0].header['CUNIT1']))
 
+
+    inputfilename_fullpath   = (Path(filename).resolve())
+    inputfilename_directory  = inputfilename_fullpath.parent
+    source                   = file[0].header['ATL_SOUR'] 
+    observatory              = file[0].header['ATL_OBS'] 
+    version                  = '1.1'
+    obsobject                = file[0].header['OBJECT'] 
+    extension_info           = []
+    
+    atlas_filemap1 = atlas_file_content(filename, inputfilename_directory, source, observatory, version, obsobject, extension_info)
+                                        
 # skips the primary HDU because not a binary table of data and info
     for i in range(1,len(file)):
         print("EXTENSION {}:\n".format(i))
@@ -409,6 +422,8 @@ def filecontent_map(filename):
             newcount+=1
         print("\n\n")
     count += 1
+    
+    return atlas_filemap1
             
 #
 def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
@@ -541,14 +556,16 @@ def store_data(filename, extension, startwave=1*u.nm, endwave=1*u.nm):
                 col_index = (find_column_index(atlasdict, key))[0].pop()
                 finalized = Spectrum1D(spectral_axis=file_data['Wavelength Scale   1'], flux=file_data[key])
                 
+                finalized.meta.update(col_type        = (atlastools.search_key('TTYPE' + col_index[0], atlasdict))[0])
                 finalized.meta.update(unit            = (atlastools.search_key('TUNIT' + col_index[0], atlasdict))[0])
                 finalized.meta.update(has_telluric    = (atlastools.search_key('TWATM' + col_index[0], atlasdict))[0])
-#                finalized.meta.update(has_solar       = (atlastools.search_key('TWSUN' + col_index[0], atlasdict))[0])
+#                finalized.meta.update(has_solar       = (atlastools.search_key('TWSOL' + col_index[0], atlasdict))[0])
                 finalized.meta.update(observed_object = (atlastools.search_key('TOBJC' + col_index[0], atlasdict))[0])
                 finalized.meta.update(observed_target = (atlastools.search_key('TTRGT' + col_index[0], atlasdict))[0])
                 finalized.meta.update(col_title       = (atlastools.search_key('TTITL' + col_index[0], atlasdict))[0])
                 finalized.meta.update(col_label       = (atlastools.search_key('TLABL' + col_index[0], atlasdict))[0])
                 finalized.meta.update(col_description = (atlastools.search_key('TDESC' + col_index[0], atlasdict))[0])
+                finalized.meta.update(col_method      = (atlastools.search_key('TMTHD' + col_index[0], atlasdict))[0])
                 spec_data[key] = finalized
                 
     return file_data, spec_data
@@ -605,6 +622,9 @@ def make_atlas(filename, extension, startwave=1*u.nm, endwave=1*u.nm, loaddata=0
             atlas.atm = spect_atm
             atlas.atm.meta.update(title=(atlastools.search_key('TTITL' + spect_atm_index[0], atlasdict))[0])
 
+#        spec1d_all = []
+#        for key in spec_data:
+#            spec1d_all.append(spec_data[key])
         atlas.components = spec_data
     
         # Issue #2 - need more column specific information associated with Spec1D object
