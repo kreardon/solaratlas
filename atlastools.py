@@ -133,22 +133,26 @@ def search_key(keyword_string, dictionary):
     return (keyword_values, keyword_list)
   
 #
-def filesearch():
+def filesearch(additional_directory=False):
     '''
-    Directory and file searching function that prints lists 
-    of atlas-specific files in user's current directory + 
-    subdirectories, directory where atlastools.py resides + 
-    subdirectories, and the atlasfiles/ directory + 
+    Directory and file searching function that prints lists
+    of atlas-specific files in user's current directory +
+    subdirectories, directory where atlastools.py resides +
+    subdirectories, and the atlasfiles/ directory +
     subdirectories if it exists.
-    
+
     PARAMETERS:
     ----------
-    
+
         **NO PARAMETER(S) REQUIRED**
         
+        multi_directory: optional parameter to have the function 
+                         search through user-specified directories 
+                         for atlas files(TYPE: string)
+
     RETURNS:
     -------
-    
+
         **NO RETURN VALUE, just printed information**
     '''
 
@@ -159,6 +163,22 @@ def filesearch():
         import ntpath
         head, tail = ntpath.split(path)
         return tail or ntpath.basename(head)
+    
+    # code for searching additional directories provided by user outside of auto searches
+    if additional_directory == True:
+        directories = []
+        print("To exit additional directory input, type 'exit'")
+        while True:
+            prompt = input("Additional directory to search: ")
+            input_directory = str(prompt)
+            directories.append(input_directory)
+
+            if prompt == 'exit':
+                break
+        for directory in directories:
+            if directory == 'exit':
+                directories.remove('exit')
+        print("\nDirectories to search:\n\t{}".format(directories))
 
     root = os.getcwd()
 
@@ -169,7 +189,7 @@ def filesearch():
             if fnmatch(name, module):
                 atlastools_location = os.path.join(path, module)
 
-    # keeping this in case the module needs to be manually loaded in- 
+    # keeping this in case the module needs to be manually loaded in-
     # necessary for using 'atlastools.__file__'
     #from importlib.machinery import SourceFileLoader
     #atlastools = SourceFileLoader("atlastools", atlastools_location).load_module()
@@ -193,7 +213,7 @@ def filesearch():
                 print(os.path.join(path_leaf(path), name))
     print("______________________________")
 
-    # locating atlas files in the atlastools.py directory        
+    # locating atlas files in the atlastools.py directory
     print("\natlastools.py directory: {}\n".format(module_source))
     print("Available atlas files:\n")
 
@@ -219,6 +239,48 @@ def filesearch():
                     print(os.path.join(path_leaf(path), name))
         print("______________________________")
         
+    # going through the final additional_directory search:
+    
+    # defining functions needed
+    def directory_walk(directory):
+        while True:
+            if os.path.isdir(directory) == True:
+                os.chdir(directory)
+                break
+            else:
+                os.chdir('..')
+                
+    def find_atlases(directory):
+        import glob
+        # marking starting directory to go back to
+        start = os.getcwd()
+        # walking up to specified directory
+        current = directory_walk(directory)
+        pattern = "*.fits"
+        pattern2 = "*.gz"
+
+        atlases = []
+        fits = glob.glob(pattern)
+        gz = glob.glob(pattern2)
+        # only storing the file name if glob search is successful
+        if fits:
+            atlases.append(fits)
+        if gz:
+            atlases.append(gz)
+
+        # moving back to the starting place for user
+        os.chdir(start)
+        print("\nADDITIONAL SEARCH---")
+        print("\nAtlases found in '{}/':\n".format(directory))
+        for i in atlases:
+            for j in i:
+                print(j)
+    
+    # the additional directory search itself:
+    if additional_directory == True:
+        for i in directories:
+            find_atlases(i)
+           
 #
 def split_column_ttype(ttype_value):
     '''
