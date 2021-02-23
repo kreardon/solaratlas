@@ -431,6 +431,9 @@ def column_information(dictionary):
     column_info = []
 
     for i in range(len(columns)):
+        colnum      = (search_key('COLNUM', dictionary))[0]
+        column_info.append(colnum)
+
         coltypes     = (search_key('TTYPE', dictionary))[0]
         column_info.append(coltypes)
 
@@ -449,8 +452,8 @@ def column_information(dictionary):
         has_telluric = (search_key('TWATM', dictionary))[0]
         column_info.append(has_telluric)
 
-    for a, b, c, d, e, f in zip(column_info[0],column_info[1],column_info[2],column_info[3],column_info[4], column_info[5]):
-        print("-----COLUMN-----\n\nComponent type: {}\nColumn data units: {}\nAxis Labels: {}\nTarget: {}\nDerivation Method: {}\nIncludes Telluric Absorption: {}\n".format(a,b,c,d,e,f))
+    for a, b, c, d, e, f, g in zip(column_info[0],column_info[1],column_info[2],column_info[3],column_info[4], column_info[5], column_info[6]):
+        print("{}\n\nComponent type: {}\nColumn data units: {}\nAxis Labels: {}\nTarget: {}\nDerivation Method: {}\nIncludes Telluric Absorption: {}\n".format(a,b,c,d,e,f,g))
 
 #
 def find_column_index(dictionary, column_key, keyword_base=False):
@@ -486,9 +489,9 @@ def tunit_str_to_unit(fits_unit_text):
 
     if fits_unit_text.lower() == 'relint' or fits_unit_text.lower() == 'flux' :
         unit_type = u.dimensionless_unscaled
-    elif fits_unit_text.lower() == 'nanometers' or fits_unit_text.lower() == 'nm':
+    elif fits_unit_text.lower() == 'nanometers' or fits_unit_text.lower() == 'nm' or fits_unit_text.lower() == 'Nanometers':
         unit_type = u.nm
-    elif fits_unit_text.lower() == 'angstrom' or fits_unit_text.upper() == 'A':
+    elif fits_unit_text.lower() == 'angstrom' or fits_unit_text.upper() == 'A' or fits_unit_text.lower() == 'Angstrom':
         unit_type = u.nm
     elif fits_unit_text.lower() == 'cm^-1':
         unit_type = u.k     # kayser: CGS unit of wavenumber
