@@ -554,7 +554,6 @@ def filecontent_map(filename):
 
         atlasdict = make_dictionary(filename,i)
 
-
         fullminimums = search_key('TDMIN', atlasdict)
         minimums = fullminimums[0]
         fullmaximums = search_key('TDMAX', atlasdict)
@@ -573,20 +572,27 @@ def filecontent_map(filename):
         # off of a string that I'm unaware of?)
         header_unit = file[0].header['CUNIT1']
 
+        tunit_str_to_unit
         if header_unit == 'nm' or 'nanometers':
             unit = u.nm
 
-        wavemin      = file[0].header['WAVEMIN'] * unit
-        wavemax      = file[0].header['WAVEMAX'] * unit
-        col_length   = file[1].header['NAXIS2']
-
-        # some extra work just counting columns in the extension
-        finding_columns = search_key('TTYPE', atlasdict)
-
-        numcols      = len(finding_columns[1])
+        #wave_col_id  = file[0].header['ATLWVCOL']
+        wave_col_id  = (search_key('ATLWVCOL',atlasdict))[0]
+        waveref_col  = (find_column_index(atlasdict, wave_col_id[0]))[0].pop()
+        wavemin      = search_key('TDMIN' + waveref_col[0], atlasdict)
+        wavemax      = search_key('TDMAX' + waveref_col[0], atlasdict)
+        waveunit_str = (search_key('TCUNI' + waveref_col[0], atlasdict))[0]
+        waveunit     = tunit_str_to_unit(waveunit_str[0])
+        wavemin      = wavemin[0] * waveunit
+        wavemax      = wavemax[0] * waveunit
+        
+        #wavemin      = file[0].header['WAVEMIN'] * unit
+        #wavemax      = file[0].header['WAVEMAX'] * unit
+        col_length   = (search_key('NAXIS2',atlasdict))[0]
 
         # using the atlastools.split_column_ttype function to separate list of TTYPE strings from TTYPE integer:
         ttype_search = search_key('TTYPE', atlasdict)
+        numcols      = len(ttype_search[1])
         split = []
         types = []
         indicies = []
@@ -599,6 +605,7 @@ def filecontent_map(filename):
         for dictionary in split:
             indicies.append(dictionary['Column Type Number'])
 
+        
         coltypes     = types
         coltypes_idx = indicies
         has_solar    = (search_key('TWSOL', atlasdict))[0]
