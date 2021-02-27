@@ -47,7 +47,7 @@ class atlas_file_extension_info:
         atlas_file_exten_obj.titles         = col_titles      # list of column titles from TDESCn or TTITLn (e.g. [ 'Stenflo/SS3 Disk Center Atlas', ..., 'Stenflo/SS3 Limb Atlas' ])
 
 class atlas_file_content:
-    def __init__(atlas_file_obj, filename, filepath, source, observatory, version, obsobject, extension_info):
+    def __init__(atlas_file_obj, filename, filepath, source, observatory, version, obsobject, extension_info, dictionary):
         atlas_file_obj.filename       = filename              # name of source file being described
         atlas_file_obj.filepath       = filepath              # full or relative path to source file being described
         atlas_file_obj.source         = source                # description of atlas source from ATL_SOUR
@@ -55,6 +55,7 @@ class atlas_file_content:
         atlas_file_obj.version        = version               # version number of atlas file
         atlas_file_obj.obsobject      = obsobject             # observed object for atlas
         atlas_file_obj.extension_info = extension_info        # list of atlas_file_extension_info objects contain details on individual extensions in file
+        atlas_file_obj.dictionary     = dictionary            # dictionary of file's primary header and extension header keywords and values
 
     def file_info(atlas_filemap_obj):
         '''
@@ -585,7 +586,7 @@ def filecontent_map(filename):
         waveunit     = tunit_str_to_unit(waveunit_str[0])
         wavemin      = wavemin[0] * waveunit
         wavemax      = wavemax[0] * waveunit
-        
+
         #wavemin      = file[0].header['WAVEMIN'] * unit
         #wavemax      = file[0].header['WAVEMAX'] * unit
         col_length   = (search_key('NAXIS2',atlasdict))[0]
@@ -605,7 +606,7 @@ def filecontent_map(filename):
         for dictionary in split:
             indicies.append(dictionary['Column Type Number'])
 
-        
+
         coltypes     = types
         coltypes_idx = indicies
         has_solar    = (search_key('TWSOL', atlasdict))[0]
@@ -632,8 +633,9 @@ def filecontent_map(filename):
     version                  = '1.1'
     obsobject                = file[0].header['OBJECT']
     extension_info           = atlas_extension_all
+    dictionary               = atlasdict
 
-    atlas_filemap = atlas_file_content(filename, inputfilename_directory, source, observatory, version, obsobject, atlas_extension_all)
+    atlas_filemap = atlas_file_content(filename, inputfilename_directory, source, observatory, version, obsobject, atlas_extension_all, dictionary)
 
     return atlas_filemap
 
