@@ -17,7 +17,7 @@ The atlases here include:
 -- `kitt.peak.umbra.1-2.5micron.atlas.v1.fits.gz`
 
 * **Neckel, H., 1999**, *Spectral Atlas of Solar Absolute Disk-averaged and Disk-center Intensity from 3290 to 12510 Å*, Solar Physics, Vol. 184, p. 421-422<BR>
--- `neckel.hamburg.atlas.wvscl_smooth.bintab.v1.fits.gz`
+-- `neckel.hamburg.atlas.wvscl_smooth.bintab.v3.fits.gz`
 
 * **Stenflo, 2015**, *FTS atlas of the Sun's spectrally resolved center-to-limb variation*, A & A, 573, id.A74<BR>
 -- `stenflo.SS3.5mA.bintab.v1.fits.gz`
