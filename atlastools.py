@@ -898,6 +898,7 @@ def atlas_spectrum_plot(column_key, atlas_obj, startwave=1*u.nm, endwave=1*u.nm,
 
     plt.plot(plot_spectral_axis, spectral_data)
 
+
     # extract the FITS keyword column index for the column being plotted
     # (as by the column_key input)
     # i.e. the keywords have names like TTITLn - we need to find the value
@@ -939,6 +940,8 @@ def atlas_spectrum_plot(column_key, atlas_obj, startwave=1*u.nm, endwave=1*u.nm,
     if ((endwave <= startwave)                 or
         (endwave >= plot_spectral_axis_max))    :
              endwave = plot_spectral_axis_max
+
+            
     plt.xlim(startwave.value, endwave.value)
     # this should be dynamically set and/or be an optional user input
     plt.ylim(0.01,1.02)
